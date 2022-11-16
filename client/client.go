@@ -53,15 +53,26 @@ func (client *GHRelBlobstore) Get(src string, dest io.WriterAt) error {
 	if err != nil {
 		return err
 	}
-	assets, _, err := client.githubClient.Repositories.ListReleaseAssets(client.ctx, owner, repo, *release.ID, &github.ListOptions{})
+
 	var desiredAssetID *int64
-	println("Desired: " + src)
-	for _, asset := range assets {
-		println("Current: " + *asset.Name)
-		if *asset.Name == src {
-			desiredAssetID = asset.ID
+	curPage := 1
+	for desiredAssetID == nil {
+		assets, resp, err := client.githubClient.Repositories.ListReleaseAssets(client.ctx, owner, repo, *release.ID, &github.ListOptions{ Page: curPage })
+		if err != nil {
+			return err
+		}
+		for _, asset := range assets {
+			if *asset.Name == src {
+				desiredAssetID = asset.ID
+				break
+			}
+		}
+		if curPage == resp.LastPage || curPage > resp.NextPage {
+			// According to github-go docs NextPage may be set to the zero value for
+			// responses that are not part of a paginated set or if there are no additional pages.
 			break
 		}
+		curPage = resp.NextPage
 	}
 
 	assetReader, _, err := client.githubClient.Repositories.DownloadReleaseAsset(client.ctx, owner, repo, *desiredAssetID, http.DefaultClient)
