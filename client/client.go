@@ -23,12 +23,20 @@ func (client *GHRelBlobstore) validateRemoteConfig() error {
 }
 
 func New(ctx context.Context, ghrelcliConfig *config.GHRelCli) (*GHRelBlobstore, error) {
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: ghrelcliConfig.AccessToken},
-	)
-	tc := oauth2.NewClient(ctx, ts)
+	var httpC *http.Client
 
-	client := github.NewClient(tc)
+	if len(ghrelcliConfig.AccessToken) == 0 {
+		// Unprivileged unauthenticated access
+		httpC = &http.Client{}
+	} else {
+		// Authenticated with Oauth token
+		oauthHttpC := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: ghrelcliConfig.AccessToken},
+		)
+		httpC = oauth2.NewClient(ctx, oauthHttpC)
+	}
+
+	client := github.NewClient(httpC)
 
 	return &GHRelBlobstore{
 		ctx:            ctx,
